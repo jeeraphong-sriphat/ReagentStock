@@ -1,13 +1,1067 @@
 <!DOCTYPE html>
 <html lang="th">
 <head>
-    <base target="_top">
-    <meta charset="UTF-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ReagentStock</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reagent Stock</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Mali:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="gs1.js"></script>
+<style>
+  :root{
+    --bg:#e9eef1; --paper:#ffffff; --ink:#15212b; --muted:#5b6b78; --line:#d3dbe1;
+    --blue:#1f5fa8; --blue-soft:#e4edf8;
+    --ok:#1a7f4b; --ok-soft:#e3f3ea; --warn:#9a6412; --warn-soft:#fcf0dc; --bad:#b3261e; --bad-soft:#fbe7e5;
+    --font:'Mali',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 var(--font)}
+  button,input,select{font:inherit;color:inherit}
+  :focus-visible{outline:3px solid #7fb0e8;outline-offset:2px}
+
+  .top{background:var(--ink);color:#fff;display:flex;align-items:center;gap:20px;padding:0 20px;min-height:56px;flex-wrap:wrap}
+  .top h1{font-size:18px;font-weight:600;margin:0}
+  nav{display:flex;gap:2px}
+  nav button{background:none;border:0;color:#b9c6d2;padding:16px 14px 14px;border-bottom:3px solid transparent;cursor:pointer;font-weight:500}
+  nav button[aria-current="page"]{color:#fff;border-bottom-color:#7fb0e8}
+  main{max-width:1180px;margin:0 auto;padding:20px}
+
+  .grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:20px;align-items:start}
+  @media (max-width:900px){.grid{grid-template-columns:1fr}}
+  .panel{background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:18px}
+  .panel h2{font-size:16px;font-weight:600;margin:0 0 12px}
+  .row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+  .row.three{grid-template-columns:2fr 1.2fr 1fr}
+  @media (max-width:560px){.row,.row.three{grid-template-columns:1fr}}
+  label{min-width:0;display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted);font-weight:500}
+  input,select{border:1px solid var(--line);border-radius:7px;padding:9px 11px;background:#fff;font-size:15px;min-width:0}
+  input[readonly]{background:#f3f6f8}
+  .code{font-weight:600;letter-spacing:.3px}
+
+  .scan{display:flex;gap:8px;margin:4px 0 14px}
+  .scan input{flex:1;font-size:16px;padding:12px 14px;border:2px solid var(--blue);border-radius:9px}
+  .scan.out input{border-color:#2f7d68}
+  .btn{border:1px solid var(--blue);background:#fff;color:var(--blue);border-radius:8px;padding:9px 14px;font-weight:600;cursor:pointer;white-space:nowrap}
+  .btn:hover{background:var(--blue-soft)}
+  .btn.solid{background:var(--blue);color:#fff}
+  .btn.solid:hover{background:#174c88}
+  .btn:disabled{opacity:.5;cursor:not-allowed}
+  .btn.big{width:100%;padding:13px;font-size:16px}
+  .link{background:none;border:0;color:var(--bad);cursor:pointer;padding:4px 6px;font-size:13px}
+  .opt{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--ink);flex-direction:row;font-weight:400}
+
+  /* ป้ายจำลองจากข้อมูลที่สแกน — ใช้สัญลักษณ์แบบบนกล่องน้ำยา (REF / LOT / วันหมดอายุ) */
+  .label{border:1.5px solid var(--ink);border-radius:6px;margin:0 0 14px;background:#fff;overflow:hidden}
+  .label .nm{padding:10px 14px;font-weight:600;font-size:16px;border-bottom:1.5px solid var(--ink)}
+  .label .nm.unknown{background:var(--warn-soft);color:var(--warn)}
+  .label .sym{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;padding:10px 14px;align-items:center}
+  .tag{font-weight:700;font-size:11px;line-height:1;border:1.5px solid var(--ink);padding:3px 5px;border-radius:2px;text-align:center;min-width:44px}
+  .tag.exp{border:0;font-size:17px;padding:0}
+  .label .v{font-size:15px;font-weight:600}
+  .label .v small{font-weight:500;font-size:12px;margin-left:8px;padding:2px 7px;border-radius:99px}
+  small.ok{background:var(--ok-soft);color:var(--ok)} small.warn{background:var(--warn-soft);color:var(--warn)} small.bad{background:var(--bad-soft);color:var(--bad)}
+  small.ok,small.warn,small.bad{padding:2px 7px;border-radius:99px;font-size:12px}
+  .notes{padding:0 14px 10px;font-size:13px;color:var(--warn)}
+  .hint{font-size:13px;color:var(--muted);margin:8px 0 0}
+  .linkbox{background:var(--warn-soft);border-radius:7px;padding:8px 10px;margin-top:10px}
+  .alert{border-radius:7px;padding:8px 12px;margin-top:10px;font-size:14px}
+  .alert.warn{background:var(--warn-soft);color:var(--warn)}
+  .alert.bad{background:var(--bad-soft);color:var(--bad)}
+  .alert.ok{background:var(--ok-soft);color:var(--ok)}
+
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th,td{padding:8px 6px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+  th{font-size:12px;color:var(--muted);font-weight:600}
+  td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+  td .sub{display:block;font-size:12px;color:var(--muted)}
+  .empty{color:var(--muted);text-align:center;padding:26px 8px}
+  .count{font-weight:400;color:var(--muted);font-size:13px;margin-left:6px}
+  .wide{margin-top:20px}
+  .scroll{overflow-x:auto}
+
+  #toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:11px 18px;border-radius:9px;max-width:92vw;box-shadow:0 6px 20px rgba(21,33,43,.25);z-index:30}
+  #toast.bad{background:var(--bad)}
+  .flash{animation:flash .6s ease-out}
+  @keyframes flash{from{background:var(--ok-soft)}to{background:#fff}}
+  @media (prefers-reduced-motion:reduce){.flash{animation:none}}
+
+  #cam{position:fixed;inset:0;background:rgba(21,33,43,.85);display:flex;align-items:center;justify-content:center;z-index:20;padding:16px}
+  #cam .box{background:#fff;border-radius:12px;padding:14px;width:min(440px,100%)}
+  #reader{width:100%;min-height:260px}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden;margin-bottom:14px;flex-wrap:wrap}
+  .seg button{border:0;background:#fff;padding:9px 16px;cursor:pointer;font-weight:500;color:var(--muted)}
+  .seg button[aria-pressed="true"]{background:var(--blue);color:#fff}
+  .filters{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}
+  .actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+  .chips span,.chip{border:1px solid var(--line);border-radius:99px;padding:5px 12px;background:#fff;font-size:14px}
+  .chip{cursor:pointer}
+  .chip.warn{background:var(--warn-soft);color:var(--warn);border-color:transparent}
+  .chip.bad{background:var(--bad-soft);color:var(--bad);border-color:transparent}
+  .chip.on{box-shadow:inset 0 0 0 2px var(--blue)}
+  #repOut h3{font-size:14px;font-weight:600;margin:16px 0 6px}
+  .printonly{display:none}
+  @media print{
+    .top,.noprint,#toast,#cam{display:none!important}
+    body{background:#fff;font-size:12px}
+    main{padding:0;max-width:none}
+    .panel{border:0;padding:0;margin:0}
+    table{font-size:11px} th,td{padding:4px}
+    .scroll{overflow:visible}
+    .printonly{display:block}
+  }
+  nav{overflow-x:auto}
+  nav button{white-space:nowrap}
+  .mgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+  .mgrid .span2{grid-column:span 2}
+  @media (max-width:560px){.mgrid .span2{grid-column:auto}}
+  tr.pick{cursor:pointer}
+  tr.pick:hover{background:var(--blue-soft)}
+  tr.pick.sel{background:var(--blue-soft);box-shadow:inset 3px 0 0 var(--blue)}
+  tr.pick.off td{color:var(--muted)}
+  .who{margin-left:auto;display:flex;align-items:center;gap:10px;font-size:14px;color:#b9c6d2}
+  .who button{background:none;border:1px solid #4a5a68;color:#fff;border-radius:7px;padding:5px 10px;cursor:pointer;font-size:13px}
+  #login{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:40;padding:16px}
+  #login form{background:#fff;border:1px solid var(--line);border-radius:12px;padding:22px;width:min(380px,100%);display:flex;flex-direction:column;gap:12px}
+  #login h2{margin:0;font-size:18px}
+  #login .hint{margin:0}
+  .hide{display:none!important}
+  #loading{padding:60px;text-align:center;color:var(--muted)}
+</style>
 </head>
 <body>
-    <iframe style="width: 100%; height: 100vh;" scrolling="yes" src="https://script.google.com/macros/s/AKfycbxTqdPuBHjk5rIF1j06bAzafcj_Gng433wK9tHL4IWSgBUIH18TMQxPkFUgoBxe_WOi/exec" frameborder="0"></iframe>
+<header class="top">
+  <h1>Reagent Stock</h1>
+  <nav>
+    <button data-page="receive" aria-current="page">รับน้ำยา</button>
+    <button data-page="issue">เบิกใช้</button>
+    <button data-page="report">รายงาน</button>
+    <button data-page="master">ทะเบียนน้ำยา</button>
+  </nav>
+  <div class="who"><span id="whoName"></span><button id="logoutBtn" type="button">ออกจากระบบ</button></div>
+</header>
+
+<main>
+  <div id="loading">กำลังโหลดรายการน้ำยา…</div>
+
+  <!-- ==================== รับน้ำยา ==================== -->
+  <section id="page-receive" class="hide">
+    <div class="grid">
+      <div class="panel">
+        <h2>ข้อมูลการรับ</h2>
+        <div class="row">
+          <label>วันที่รับ<input type="date" id="rDate"></label>
+          <label>เลขที่บิล / ใบส่งของ<input id="rBill" placeholder="เช่น INV-2569-0142"></label>
+          <label>ผู้รับ<select id="rReceiver" class="staff"></select></label>
+          <label>ผู้ตรวจสอบ<select id="rChecker" class="staff"></select></label>
+        </div>
+        <label style="margin-top:12px">หมายเหตุ<input id="rNote"></label>
+      </div>
+
+      <div class="panel">
+        <h2>เพิ่มรายการรับ</h2>
+        <div class="scan">
+          <input id="scanInput" autocomplete="off" placeholder="สแกนบาร์โค้ด/QR ที่นี่ แล้วกด Enter" aria-label="ช่องสแกนบาร์โค้ดสำหรับรับ">
+          <button class="btn" data-cam="r" type="button">เปิดกล้อง</button>
+        </div>
+        <label class="opt"><input type="checkbox" id="autoAdd" checked> สแกนแล้วเพิ่มเข้ารายการทันที ครั้งละ 1</label>
+
+        <div id="labelCard" class="label hide" style="margin-top:12px"></div>
+
+        <div class="row three" style="margin-top:12px">
+          <label>รายการน้ำยา<input id="dItem" list="itemList" placeholder="พิมพ์รหัสหรือชื่อ"></label>
+          <label>Lot<input id="dLot" class="code"></label>
+          <label>จำนวน<input id="dQty" type="number" min="1" step="1" value="1"></label>
+        </div>
+        <div class="row" style="margin-top:12px">
+          <label>วันหมดอายุ<input type="date" id="dExp"></label>
+          <label>คงเหลือในคลัง<input id="dBal" readonly></label>
+        </div>
+        <div id="linkBox" class="linkbox hide">
+          <label class="opt"><input type="checkbox" id="linkChk" checked> <span id="linkTxt"></span></label>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:14px">
+          <button class="btn solid" id="addBtn" type="button">เพิ่มเข้ารายการ</button>
+          <button class="btn" id="clearBtn" type="button">ล้างช่อง</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel wide">
+      <h2>รายการที่จะบันทึกรับ<span class="count" id="cartCount"></span></h2>
+      <div class="scroll">
+        <table>
+          <thead><tr><th>รายการ</th><th>Lot</th><th>วันหมดอายุ</th><th class="n">จำนวน</th><th>วิธี</th><th></th></tr></thead>
+          <tbody id="cartBody"></tbody>
+        </table>
+      </div>
+      <button class="btn solid big" id="saveBtn" type="button" style="margin-top:14px" disabled>บันทึกรับ</button>
+    </div>
+
+    <div class="panel wide">
+      <h2>รับล่าสุด</h2>
+      <div class="scroll">
+        <table>
+          <thead><tr><th>เลขที่รับ</th><th>วันที่</th><th>รายการ</th><th>Lot</th><th>หมดอายุ</th><th class="n">จำนวน</th><th>บิล</th><th>ผู้รับ</th></tr></thead>
+          <tbody id="recentBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== เบิกใช้ ==================== -->
+  <section id="page-issue" class="hide">
+    <div class="grid">
+      <div class="panel">
+        <h2>ข้อมูลการเบิก</h2>
+        <div class="row">
+          <label>วันที่เบิก<input type="date" id="iDate"></label>
+          <label>เบิกไปที่ (หน่วยงาน/เครื่อง)<select id="iTo"></select></label>
+          <label>ผู้เบิก<select id="iIssuer" class="staff"></select></label>
+        </div>
+        <label style="margin-top:12px">หมายเหตุ<input id="iNote"></label>
+      </div>
+
+      <div class="panel">
+        <h2>เพิ่มรายการเบิก</h2>
+        <div class="scan out">
+          <input id="iScan" autocomplete="off" placeholder="สแกนกล่องที่จะเบิก แล้วกด Enter" aria-label="ช่องสแกนบาร์โค้ดสำหรับเบิก">
+          <button class="btn" data-cam="i" type="button">เปิดกล้อง</button>
+        </div>
+        <label class="opt"><input type="checkbox" id="iAuto" checked> สแกนแล้วเพิ่มเข้ารายการทันที ครั้งละ 1</label>
+
+        <div class="row three" style="margin-top:12px">
+          <label>รายการน้ำยา<input id="iItem" list="itemList" placeholder="พิมพ์รหัสหรือชื่อ"></label>
+          <label>Lot (เรียงหมดอายุก่อน)<select id="iLot"></select></label>
+          <label>จำนวน<input id="iQty" type="number" min="1" step="1" value="1"></label>
+        </div>
+        <label style="margin-top:12px">เบิกได้<input id="iAvail" readonly></label>
+        <div id="iMsg" class="alert hide" role="status"></div>
+        <div style="display:flex;gap:8px;margin-top:14px">
+          <button class="btn solid" id="iAddBtn" type="button">เพิ่มเข้ารายการ</button>
+          <button class="btn" id="iClearBtn" type="button">ล้างช่อง</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel wide">
+      <h2>รายการที่จะบันทึกเบิก<span class="count" id="iCartCount"></span></h2>
+      <div class="scroll">
+        <table>
+          <thead><tr><th>รายการ</th><th>Lot</th><th>วันหมดอายุ</th><th class="n">จำนวน</th><th>วิธี</th><th></th></tr></thead>
+          <tbody id="iCartBody"></tbody>
+        </table>
+      </div>
+      <button class="btn solid big" id="iSaveBtn" type="button" style="margin-top:14px" disabled>บันทึกเบิก</button>
+    </div>
+
+    <div class="panel wide">
+      <h2>เบิกล่าสุด</h2>
+      <div class="scroll">
+        <table>
+          <thead><tr><th>เลขที่เบิก</th><th>วันที่</th><th>รายการ</th><th>Lot</th><th>หมดอายุ</th><th class="n">จำนวน</th><th>เบิกไปที่</th><th>ผู้เบิก</th></tr></thead>
+          <tbody id="iRecentBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section id="page-report" class="hide">
+    <div class="panel noprint">
+      <div class="seg">
+        <button data-rep="receive" aria-pressed="true" type="button">รายงานรับ</button>
+        <button data-rep="issue" aria-pressed="false" type="button">รายงานเบิก</button>
+        <button data-rep="stock" aria-pressed="false" type="button">คงเหลือ</button>
+      </div>
+      <div class="filters">
+        <label class="dr">ช่วงเวลา<select id="qRange">
+          <option value="month">เดือนนี้</option><option value="last">เดือนที่แล้ว</option>
+          <option value="30">30 วันล่าสุด</option><option value="custom">กำหนดเอง</option>
+        </select></label>
+        <label class="dr">ตั้งแต่วันที่<input type="date" id="qFrom"></label>
+        <label class="dr">ถึงวันที่<input type="date" id="qEnd"></label>
+        <label>รายการน้ำยา<input id="qItem" list="itemList" placeholder="ทุกรายการ"></label>
+        <label class="only-issue hide">เบิกไปที่<select id="qDest"></select></label>
+        <label class="only-stock hide">แสดง<select id="qStatus">
+          <option value="has">เฉพาะที่มีของ</option><option value="all">ทั้งหมด</option>
+          <option value="low">ต่ำกว่า Min</option><option value="near">ใกล้หมดอายุ</option>
+          <option value="expired">หมดอายุแล้ว</option><option value="out">หมดแล้ว</option>
+        </select></label>
+      </div>
+      <div class="actions">
+        <button class="btn solid" id="qRun" type="button">แสดงรายงาน</button>
+        <button class="btn" id="qCsv" type="button">ดาวน์โหลด CSV</button>
+        <button class="btn" id="qPrint" type="button">พิมพ์</button>
+      </div>
+    </div>
+
+    <div class="panel wide" id="repOut">
+      <h2 id="repTitle">รายงาน</h2>
+      <p class="hint" id="repSub" style="margin-top:-6px"></p>
+      <div id="repSummary"></div>
+      <div class="scroll"><table id="repTable"></table></div>
+      <p class="hint printonly" id="repPrinted"></p>
+    </div>
+  </section>
+  <!-- ==================== ทะเบียนน้ำยา ==================== -->
+  <section id="page-master" class="hide">
+    <div class="panel">
+      <h2 id="mTitle">เพิ่มรายการใหม่</h2>
+      <div class="scan">
+        <input id="mScan" autocomplete="off" placeholder="สแกนกล่องเพื่อใส่บาร์โค้ด (ไม่บังคับ)" aria-label="ช่องสแกนบาร์โค้ดสำหรับทะเบียน">
+        <button class="btn" data-cam="m" type="button">เปิดกล้อง</button>
+      </div>
+      <div class="mgrid">
+        <label>รหัสรายการ<input id="mCode" class="code"></label>
+        <label class="span2">ชื่อรายการ *<input id="mName" placeholder="เช่น CRP Vario HS Calibrator"></label>
+        <label>ประเภท<input id="mCat" list="dlCat"></label>
+        <label>หน่วย *<input id="mUnit" list="dlUnit" placeholder="เช่น กล่อง"></label>
+        <label>บาร์โค้ด (GTIN)<input id="mBarcode" class="code"></label>
+        <label>ผู้ผลิต<input id="mMaker" list="dlMaker"></label>
+        <label>บริษัทตัวแทน<input id="mSupplier" list="dlSupplier"></label>
+        <label>ที่เก็บ<input id="mLoc" list="dlLoc"></label>
+        <label>อุณหภูมิเก็บ<input id="mTemp" list="dlTemp"></label>
+        <label>จุดสั่งซื้อ (Min)<input id="mMin" type="number" min="0" step="1"></label>
+        <label class="span2">หมายเหตุ<input id="mNote" placeholder="เช่น REF / เลขที่สั่งซื้อ"></label>
+      </div>
+      <label class="opt" style="margin-top:12px"><input type="checkbox" id="mActive" checked> ใช้งานอยู่ (ถ้าเลิกใช้ ให้เอาเครื่องหมายออก รายการจะไม่แสดงในหน้ารับ/เบิก แต่ประวัติยังอยู่ครบ)</label>
+      <div id="mMsg" class="alert hide" role="status"></div>
+      <div class="actions">
+        <button class="btn solid" id="mSave" type="button">บันทึกรายการใหม่</button>
+        <button class="btn" id="mCancel" type="button">ล้างฟอร์ม / เพิ่มใหม่</button>
+      </div>
+    </div>
+
+    <div class="panel wide">
+      <h2>ทะเบียนน้ำยา<span class="count" id="mCount"></span></h2>
+      <div class="filters" style="margin-bottom:12px">
+        <label>ค้นหา<input id="mSearch" type="search" placeholder="รหัส ชื่อ ประเภท บาร์โค้ด ที่เก็บ"></label>
+        <label>แสดง<select id="mFilter"><option value="on">เฉพาะที่ใช้งาน</option><option value="all">ทั้งหมด</option><option value="off">ปิดใช้งาน</option></select></label>
+      </div>
+      <div class="scroll">
+        <table>
+          <thead><tr><th>รหัส</th><th>รายการ</th><th>ประเภท</th><th>หน่วย</th><th>บาร์โค้ด</th><th class="n">Min</th><th>ที่เก็บ</th><th>สถานะ</th></tr></thead>
+          <tbody id="mBody"></tbody>
+        </table>
+      </div>
+      <p class="hint">คลิกที่แถวเพื่อแก้ไข</p>
+    </div>
+    <datalist id="dlCat"></datalist><datalist id="dlUnit"></datalist><datalist id="dlMaker"></datalist>
+    <datalist id="dlSupplier"></datalist><datalist id="dlLoc"></datalist><datalist id="dlTemp"></datalist>
+  </section>
+</main>
+
+<datalist id="itemList"></datalist>
+
+<div id="cam" class="hide" role="dialog" aria-label="สแกนด้วยกล้อง">
+  <div class="box">
+    <div id="reader"></div>
+    <p class="hint" id="camMsg">หันกล้องไปที่ QR / DataMatrix บนกล่อง</p>
+    <button class="btn big" id="camClose" type="button">ปิดกล้อง</button>
+  </div>
+</div>
+<div id="toast" class="hide" role="status" aria-live="polite"></div>
+
+<div id="login" class="hide" role="dialog" aria-labelledby="loginTitle">
+  <form id="loginForm" autocomplete="on">
+    <h2 id="loginTitle">Reagent Stock</h2>
+    <p class="hint">เข้าสู่ระบบด้วยชื่อผู้ใช้และ PIN</p>
+    <label>ชื่อผู้ใช้<input id="lUser" autocomplete="username" autocapitalize="none" spellcheck="false" required></label>
+    <label>PIN<input id="lPin" type="password" inputmode="numeric" autocomplete="current-password" required></label>
+    <div id="lMsg" class="alert bad hide" role="alert"></div>
+    <button class="btn solid big" type="submit" id="lBtn">เข้าสู่ระบบ</button>
+  </form>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+/* ================= เชื่อมต่อ API (Apps Script) ================= */
+// URL ของ Web app (Deploy แบบ Who has access: Anyone)
+const API_URL = 'https://script.google.com/macros/s/AKfycbwIezRomUIkB9vxA5iLjdFP7njREpG-xwniuyeCysxX130Q_Lwe8lTaS_EJAlZNUrou/exec';
+let TOKEN = '', USER = null, booted = false;
+try { TOKEN = localStorage.getItem('rs_token') || ''; } catch (e) {}
+const saveToken = t => { TOKEN = t || ''; try { t ? localStorage.setItem('rs_token', t) : localStorage.removeItem('rs_token'); } catch (e) {} };
+
+async function call(action, ...args) {
+  let res, j;
+  try {
+    res = await fetch(API_URL, {method: 'POST', headers: {'Content-Type': 'text/plain;charset=utf-8'},
+                                body: JSON.stringify({action, token: TOKEN, args})});
+  } catch (e) { throw new Error('เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ — ตรวจสอบอินเทอร์เน็ต'); }
+  try { j = await res.json(); }
+  catch (e) { throw new Error('เซิร์ฟเวอร์ตอบกลับไม่ถูกต้อง (ตรวจว่า Deploy เป็น "Anyone" และ API_URL ถูกต้อง)'); }
+  if (!j.ok) {
+    if (j.auth) { saveToken(''); showLogin(j.error); }
+    throw new Error(j.error || 'เกิดข้อผิดพลาด');
+  }
+  return j.data;
+}
+
+function showLogin(msg) {
+  $('login').classList.remove('hide');
+  $('lMsg').textContent = msg || ''; $('lMsg').classList.toggle('hide', !msg);
+  setTimeout(() => ($('lUser').value ? $('lPin') : $('lUser')).focus(), 50);
+}
+$('loginForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const btn = $('lBtn'); btn.disabled = true; btn.textContent = 'กำลังเข้าสู่ระบบ…';
+  try {
+    const res = await call('login', $('lUser').value.trim(), $('lPin').value);
+    saveToken(res.token); USER = res.user; afterLogin();
+  } catch (err) { $('lMsg').textContent = err.message; $('lMsg').classList.remove('hide'); $('lPin').select(); }
+  finally { btn.disabled = false; btn.textContent = 'เข้าสู่ระบบ'; $('lPin').value = ''; }
+});
+function afterLogin() {
+  $('login').classList.add('hide');
+  $('whoName').textContent = USER.name || USER.username;
+  if (!booted) { booted = true; boot(); } else refreshInit();
+}
+$('logoutBtn').addEventListener('click', async () => {
+  if (!confirm('ออกจากระบบ?')) return;
+  try { await call('logout'); } catch (e) {}
+  saveToken(''); location.reload();
+});
+async function start() {
+  if (!TOKEN) return showLogin();
+  try { USER = await call('me'); afterLogin(); }
+  catch (e) { if ($('login').classList.contains('hide')) $('loading').textContent = 'เชื่อมต่อไม่สำเร็จ: ' + e.message; }
+}
+const thDate = iso => iso ? iso.slice(8,10) + '/' + iso.slice(5,7) + '/' + iso.slice(0,4) : '';
+
+let INIT = null, byCode = new Map(), byBarcode = new Map(), tailMap = {};
+let draft = null, cart = [];          // รับ
+let iDraft = null, iCart = [];        // เบิก
+let page = 'receive';
+
+/* ================= โหลด / ข้อมูลกลาง ================= */
+async function boot() {
+  try { INIT = await call('getInitData'); }
+  catch (e) { $('loading').textContent = 'โหลดข้อมูลไม่สำเร็จ: ' + e.message; return; }
+  indexItems();
+  const opts = (list, ph) => '<option value="">' + ph + '</option>' + list.map(s => `<option>${esc(s)}</option>`).join('');
+  document.querySelectorAll('select.staff').forEach(s => s.innerHTML = opts(INIT.staff, '— เลือก —'));
+  $('iTo').innerHTML = opts(INIT.issueTo, '— เลือก —');
+  $('rDate').value = INIT.today; $('iDate').value = INIT.today;
+  if (USER && INIT.staff.includes(USER.name)) ['rReceiver', 'iIssuer'].forEach(id => $(id).value = USER.name);
+  initReport();
+  $('loading').classList.add('hide');
+  showPage('receive');
+  renderCart(); renderIssueCart(); fillLots(null);
+  loadRecent(); loadRecentIssues();
+}
+async function refreshInit() {
+  try { INIT = await call('getInitData'); indexItems(); if (page === 'issue') updateIssueInfo(); } catch (e) {}
+}
+function indexItems() {
+  byCode = new Map(INIT.items.map(i => [i.code, i]));
+  byBarcode = new Map(INIT.items.filter(i => i.barcode).map(i => [i.barcode, i]));
+  tailMap = {}; INIT.items.forEach(i => { if (i.barcode && i.tail) tailMap[i.barcode] = i.tail; });
+  $('itemList').innerHTML = INIT.items.map(i => `<option value="${esc(i.code + ' | ' + i.name)}"></option>`).join('');
+}
+const itemFromInput = v => byCode.get(String(v).split(' | ')[0].trim()) || null;
+const normBc = s => { s = String(s || '').trim(); return /^\d{8,14}$/.test(s) ? s.padStart(14, '0') : s.toUpperCase(); };
+// AI ที่อาจต่อท้าย Lot เมื่อเครื่องสแกนไม่ส่งตัวคั่น
+const AI_START = /^(24[01]|25[01]|400|10|2[12]|3[07]|9\d|1[1-7])/;
+function lookup(text) {
+  const r = parseGS1(text, {tails: tailMap});
+  const item = (r.gtin && byBarcode.get(r.gtin)) || byBarcode.get(normBc(text)) || null;
+  // Lot ติดกับข้อมูลอื่น: ถ้ามี Lot ของรายการนี้ที่เคยรับเข้าแล้วตรงกับส่วนต้น ให้ใช้ Lot นั้น (แม่นยำ)
+  if (item && r.lotGuess && r.lotRaw) {
+    const ok = l => l && r.lotRaw.startsWith(l) && (r.lotRaw.length === l.length || AI_START.test(r.lotRaw.slice(l.length)));
+    const known = INIT.stock.filter(s => s.code === item.code && ok(s.lot)).sort((a, b) => b.lot.length - a.lot.length)[0];
+    if (known) {
+      r.lot = known.lot; r.lotGuess = false;
+      r.warnings = r.warnings.filter(w => w !== GS1_GUESS_MSG);
+      const b = gs1Best_(r.lotRaw.slice(known.lot.length));
+      if (b) b.parse.forEach(p => { if (p[0] === '240') r.ref = p[1]; });
+    }
+  }
+  return {r, item, gtin: r.gtin || (r.type === 'Unknown' ? normBc(text) : '')};
+}
+// จำส่วนท้ายบาร์โค้ด (ต่อจาก Lot) ของสินค้านี้ เพื่อให้สแกนครั้งต่อไปแยก Lot ได้เองอัตโนมัติ
+function rememberTail(item, r, lot) {
+  if (!item || !r || !r.noGS || !r.lotRaw || !r.gtin || !lot || !r.lotRaw.startsWith(lot)) return;
+  const rest = r.lotRaw.slice(lot.length);
+  if (rest && !AI_START.test(rest)) return;
+  const tail = rest || 'NONE';
+  if (tailMap[r.gtin] === tail) return;
+  tailMap[r.gtin] = tail; item.tail = tail;
+  call('learnBarcodeTail', item.code, tail).catch(e => toast('จำรูปแบบบาร์โค้ดไม่สำเร็จ: ' + e.message, true));
+}
+function expState(iso) {
+  if (!iso) return null;
+  const days = Math.round((new Date(iso) - new Date(INIT.today)) / 864e5);
+  if (days < 0) return {cls:'bad', t:'หมดอายุแล้ว', days};
+  if (days <= INIT.nearExpDays) return {cls:'warn', t:`อีก ${days} วัน`, days};
+  return {cls:'ok', t:`อีก ${days} วัน`, days};
+}
+const expCell = iso => { const st = expState(iso); return (thDate(iso) || '–') + (st ? `<span class="sub"><small class="${st.cls}">${st.t}</small></span>` : ''); };
+const onEnter = (id, fn) => $(id).addEventListener('keydown', e => {
+  if (e.key !== 'Enter') return; e.preventDefault();
+  const v = e.target.value; e.target.value = ''; if (v.trim()) fn(v);
+});
+
+/* ================= รับน้ำยา ================= */
+onEnter('scanInput', handleCode);
+
+function handleCode(text) {
+  const {r, item, gtin} = lookup(text);
+  draft = {raw: text, parsed: r, gtin};
+  $('dItem').value = item ? item.code + ' | ' + item.name : '';
+  $('dLot').value = r.lot || '';
+  $('dExp').value = /^\d{4}-\d{2}-\d{2}$/.test(r.exp) ? r.exp : '';
+  $('dQty').value = 1;
+  renderLabel(item);
+  updateDraftInfo();
+  if (item && $('autoAdd').checked && (r.lot || r.type === 'EAN/UPC' || r.type === 'Unknown') && !r.warnings.length) addDraft();
+  else if (!item) $('dItem').focus();
+  else { $('dQty').focus(); $('dQty').select(); }
+}
+
+function renderLabel(item) {
+  const r = draft.parsed, st = expState(/^\d{4}/.test(r.exp) ? r.exp : '');
+  const line = (tag, v, extra = '') => v ? `<span class="tag${tag === '⌛' ? ' exp' : ''}">${tag}</span><span class="v">${esc(v)}${extra}</span>` : '';
+  $('labelCard').innerHTML =
+    `<div class="nm ${item ? '' : 'unknown'}">${item ? esc(item.name) : 'ไม่พบบาร์โค้ดนี้ในทะเบียน — เลือกรายการด้านล่าง'}</div>
+     <div class="sym">
+       ${line('GTIN', r.gtin)}${line('REF', r.ref)}${line('LOT', r.lot)}
+       ${line('⌛', thDate(r.exp) || r.exp, st ? ` <small class="${st.cls}">${st.t}</small>` : '')}
+       ${!r.gtin && !r.lot ? line('CODE', r.raw) : ''}
+     </div>
+     ${r.warnings.length ? `<div class="notes">${r.warnings.map(esc).join('<br>')}</div>` : ''}`;
+  $('labelCard').classList.remove('hide');
+}
+
+function updateDraftInfo() {
+  const item = itemFromInput($('dItem').value), lot = $('dLot').value.trim();
+  if (item) {
+    const lots = INIT.stock.filter(s => s.code === item.code);
+    const total = lots.reduce((a, s) => a + s.bal, 0), thisLot = lots.find(s => s.lot === lot);
+    $('dBal').value = `${total} ${item.unit}` + (lot ? ` (lot นี้ ${thisLot ? thisLot.bal : 0})` : '');
+  } else $('dBal').value = '';
+  const showLink = draft && draft.gtin && item && item.barcode !== draft.gtin && !byBarcode.has(draft.gtin);
+  $('linkBox').classList.toggle('hide', !showLink);
+  if (showLink) $('linkTxt').innerHTML = `จำบาร์โค้ด <b class="code">${esc(draft.gtin)}</b> ให้กับ ${esc(item.name)} ครั้งต่อไปสแกนแล้วขึ้นชื่อเอง`;
+}
+['dItem','dLot'].forEach(id => $(id).addEventListener('input', updateDraftInfo));
+$('addBtn').addEventListener('click', addDraft);
+$('clearBtn').addEventListener('click', clearDraft);
+$('dQty').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addDraft(); } });
+
+function addDraft() {
+  const item = itemFromInput($('dItem').value);
+  const lot = $('dLot').value.trim(), exp = $('dExp').value, qty = Number($('dQty').value);
+  if (!item) return toast('เลือกรายการน้ำยาจากรายชื่อก่อน', true);
+  if (!(qty > 0)) return toast('จำนวนต้องมากกว่า 0', true);
+  if (!lot && !confirm('ยังไม่ได้ใส่ Lot — เพิ่มโดยไม่มี Lot ใช่ไหม')) return;
+  const st = expState(exp);
+  if (st && st.cls === 'bad' && !confirm('รายการนี้หมดอายุแล้ว — ยังต้องการรับเข้าใช่ไหม')) return;
+  if (draft && !$('linkBox').classList.contains('hide') && $('linkChk').checked) linkBarcodeAsync(item, draft.gtin);
+  if (draft) rememberTail(item, draft.parsed, lot);
+  const found = cart.find(c => c.code === item.code && c.lot === lot && c.exp === exp);
+  if (found) found.qty += qty;
+  else cart.push({code: item.code, name: item.name, unit: item.unit, lot, exp, qty, method: draft ? 'Scan' : 'Manual', raw: draft ? draft.raw : ''});
+  renderCart(found || cart[cart.length - 1]);
+  toast(`เพิ่ม ${item.name}${lot ? ' lot ' + lot : ''} × ${qty}`);
+  clearDraft();
+}
+async function linkBarcodeAsync(item, gtin) {
+  try { await call('linkBarcode', item.code, gtin); item.barcode = gtin; byBarcode.set(gtin, item); }
+  catch (e) { toast('จำบาร์โค้ดไม่สำเร็จ: ' + e.message, true); }
+}
+function clearDraft() {
+  draft = null;
+  ['dItem','dLot','dExp','dBal'].forEach(id => $(id).value = '');
+  $('dQty').value = 1;
+  $('labelCard').classList.add('hide'); $('linkBox').classList.add('hide');
+  $('scanInput').focus();
+}
+function cartRows(list, flashRow) {
+  return list.map((c, i) => `<tr class="${c === flashRow ? 'flash' : ''}">
+    <td>${esc(c.name)}<span class="sub code">${esc(c.code)}</span></td>
+    <td class="code">${esc(c.lot) || '–'}</td>
+    <td>${expCell(c.exp)}</td>
+    <td class="n"><input type="number" min="1" value="${c.qty}" data-i="${i}" style="width:74px;text-align:right" aria-label="จำนวน"> ${esc(c.unit)}</td>
+    <td>${c.method === 'Scan' ? 'สแกน' : 'กรอกเอง'}</td>
+    <td><button class="link" data-del="${i}" type="button">ลบ</button></td>
+  </tr>`).join('');
+}
+function renderCart(flashRow) {
+  $('cartCount').textContent = cart.length ? `${cart.length} รายการ · รวม ${cart.reduce((a, c) => a + c.qty, 0)} หน่วย` : '';
+  $('cartBody').innerHTML = cartRows(cart, flashRow) || `<tr><td colspan="6" class="empty">สแกนกล่องน้ำยา หรือเลือกรายการแล้วกด “เพิ่มเข้ารายการ”</td></tr>`;
+  $('saveBtn').disabled = !cart.length;
+  $('saveBtn').textContent = cart.length ? `บันทึกรับ ${cart.length} รายการ` : 'บันทึกรับ';
+}
+$('cartBody').addEventListener('change', e => {
+  const i = e.target.dataset.i; if (i == null) return;
+  const q = Number(e.target.value); if (q > 0) cart[i].qty = q; else e.target.value = cart[i].qty;
+  renderCart();
+});
+$('cartBody').addEventListener('click', e => { const i = e.target.dataset.del; if (i == null) return; cart.splice(Number(i), 1); renderCart(); });
+
+$('saveBtn').addEventListener('click', async () => {
+  if (!$('rReceiver').value) { $('rReceiver').focus(); return toast('เลือกผู้รับก่อนบันทึก', true); }
+  const btn = $('saveBtn'); btn.disabled = true; btn.textContent = 'กำลังบันทึก…';
+  try {
+    const res = await call('saveReceive', {
+      receiveDate: $('rDate').value, billNo: $('rBill').value, receiver: $('rReceiver').value,
+      checker: $('rChecker').value, note: $('rNote').value,
+      items: cart.map(c => ({itemCode: c.code, lot: c.lot, exp: c.exp, qty: c.qty, method: c.method, raw: c.raw}))
+    });
+    toast(`บันทึกรับ ${res.count} รายการแล้ว (${idRange(res.ids)})`);
+    cart = []; $('rBill').value = ''; $('rNote').value = '';
+    renderCart(); loadRecent(); refreshInit();
+  } catch (e) { toast('บันทึกไม่สำเร็จ: ' + e.message, true); renderCart(); }
+});
+const idRange = ids => ids[0] + (ids.length > 1 ? ' – ' + ids[ids.length - 1].slice(-3) : '');
+
+async function loadRecent() {
+  try {
+    const rows = await call('getRecentReceives', 20);
+    $('recentBody').innerHTML = rows.map(r => `<tr>
+      <td class="code">${esc(r.id)}</td><td>${thDate(r.date)}</td>
+      <td>${esc(r.name)}<span class="sub">${r.method === 'Scan' ? 'สแกน' : 'กรอกเอง'}</span></td>
+      <td class="code">${esc(r.lot) || '–'}</td><td>${thDate(r.exp) || '–'}</td>
+      <td class="n">${r.qty} ${esc(r.unit)}</td><td>${esc(r.bill) || '–'}</td><td>${esc(r.receiver)}</td>
+    </tr>`).join('') || `<tr><td colspan="8" class="empty">ยังไม่มีการรับน้ำยา</td></tr>`;
+  } catch (e) { $('recentBody').innerHTML = `<tr><td colspan="8" class="empty">โหลดไม่สำเร็จ: ${esc(e.message)}</td></tr>`; }
+}
+
+/* ================= เบิกใช้ ================= */
+onEnter('iScan', handleIssueCode);
+
+// lot ที่มีของ เรียงหมดอายุก่อน (FEFO) — lot ไม่มีวันหมดอายุไว้ท้ายสุด
+function lotsOf(code) {
+  return INIT.stock.filter(s => s.code === code && s.bal > 0)
+    .sort((a, b) => (a.exp || '9999').localeCompare(b.exp || '9999') || a.lot.localeCompare(b.lot));
+}
+const inCart = (code, lot) => iCart.filter(c => c.code === code && c.lot === lot).reduce((a, c) => a + c.qty, 0);
+
+function fillLots(item, prefer) {
+  const sel = $('iLot');
+  if (!item) { sel.innerHTML = '<option value="">— เลือกรายการก่อน —</option>'; updateIssueInfo(); return; }
+  const lots = lotsOf(item.code);
+  sel.innerHTML = lots.length
+    ? lots.map(l => `<option value="${esc(l.lot)}">${esc(l.lot || '(ไม่มี Lot)')} · หมดอายุ ${thDate(l.exp) || '–'} · เหลือ ${l.bal}</option>`).join('')
+    : '<option value="">— ไม่มีของคงเหลือ —</option>';
+  if (prefer != null && lots.some(l => l.lot === prefer)) sel.value = prefer;
+  updateIssueInfo();
+}
+
+function issueState() {
+  const item = itemFromInput($('iItem').value);
+  if (!item) return {item: null};
+  const lots = lotsOf(item.code), lot = $('iLot').value;
+  const cur = lots.find(l => l.lot === lot) || null;
+  const avail = cur ? cur.bal - inCart(item.code, lot) : 0;
+  const earlier = cur ? lots.find(l => l !== cur && (l.exp || '9999') < (cur.exp || '9999') && l.bal - inCart(item.code, l.lot) > 0) : null;
+  return {item, lots, lot, cur, avail, earlier, st: cur ? expState(cur.exp) : null};
+}
+
+function updateIssueInfo(extraMsg) {
+  const s = issueState(), msg = $('iMsg');
+  let text = extraMsg || '', cls = 'warn';
+  if (!s.item) $('iAvail').value = '';
+  else if (!s.cur) { $('iAvail').value = `0 ${s.item.unit}`; if (!text) { text = 'รายการนี้ไม่มีของคงเหลือในระบบ'; cls = 'bad'; } }
+  else {
+    $('iAvail').value = `${s.avail} ${s.item.unit}` + (inCart(s.item.code, s.lot) ? ` (หักที่อยู่ในรายการแล้ว)` : '');
+    if (!text && s.st && s.st.cls === 'bad') { text = `Lot ${s.lot} หมดอายุแล้ว (${thDate(s.cur.exp)})`; cls = 'bad'; }
+    else if (!text && s.earlier) text = `มี Lot ${s.earlier.lot} ที่หมดอายุก่อน (${thDate(s.earlier.exp)}) ควรเบิก lot นั้นก่อน`;
+    else if (!text && s.st && s.st.cls === 'warn') text = `Lot นี้ใกล้หมดอายุ: ${s.st.t}`;
+  }
+  msg.textContent = text; msg.className = 'alert ' + cls + (text ? '' : ' hide');
+}
+$('iItem').addEventListener('input', () => fillLots(itemFromInput($('iItem').value)));
+$('iLot').addEventListener('change', () => updateIssueInfo());
+$('iAddBtn').addEventListener('click', () => addIssue());
+$('iClearBtn').addEventListener('click', clearIssueDraft);
+$('iQty').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addIssue(); } });
+
+function handleIssueCode(text) {
+  const {r, item} = lookup(text);
+  iDraft = {raw: text, parsed: r};
+  if (!item) {
+    $('iItem').value = ''; fillLots(null);
+    updateIssueInfo('ไม่พบบาร์โค้ดนี้ในทะเบียน — เลือกรายการเอง (ผูกบาร์โค้ดได้ที่หน้ารับน้ำยา)');
+    $('iItem').focus(); return;
+  }
+  $('iItem').value = item.code + ' | ' + item.name;
+  $('iQty').value = 1;
+  fillLots(item, r.lot || null);
+  const s = issueState();
+  let note = '';
+  if (r.lot && s.lot !== r.lot) note = `Lot ${r.lot} ที่สแกนไม่มีคงเหลือในระบบ (อาจยังไม่ได้บันทึกรับ) — เลือก lot ที่มีอยู่แทน`;
+  if (note) { updateIssueInfo(note); $('iLot').focus(); return; }
+  const clean = s.cur && s.avail >= 1 && !s.earlier && !(s.st && s.st.cls === 'bad') && !r.lotGuess;
+  if ($('iAuto').checked && clean) addIssue(true);
+  else { $('iQty').focus(); $('iQty').select(); }
+}
+
+function addIssue(silent) {
+  const s = issueState(), qty = Number($('iQty').value);
+  if (!s.item) return toast('เลือกรายการน้ำยาจากรายชื่อก่อน', true);
+  if (!s.cur) return toast('รายการนี้ไม่มีของคงเหลือให้เบิก', true);
+  if (!(qty > 0)) return toast('จำนวนต้องมากกว่า 0', true);
+  if (qty > s.avail) return toast(`Lot ${s.lot} เบิกได้อีก ${s.avail} ${s.item.unit}`, true);
+  if (!silent) {
+    if (s.st && s.st.cls === 'bad' && !confirm(`Lot ${s.lot} หมดอายุแล้ว — ยังต้องการเบิกใช่ไหม`)) return;
+    if (s.earlier && !confirm(`Lot ${s.earlier.lot} หมดอายุก่อน (${thDate(s.earlier.exp)}) — ยืนยันเบิก lot ${s.lot} ใช่ไหม`)) return;
+  }
+  if (iDraft) rememberTail(s.item, iDraft.parsed, s.lot);
+  const found = iCart.find(c => c.code === s.item.code && c.lot === s.lot);
+  if (found) found.qty += qty;
+  else iCart.push({code: s.item.code, name: s.item.name, unit: s.item.unit, lot: s.lot, exp: s.cur.exp, qty,
+                   method: iDraft ? 'Scan' : 'Manual', raw: iDraft ? iDraft.raw : ''});
+  renderIssueCart(found || iCart[iCart.length - 1]);
+  toast(`เพิ่มเบิก ${s.item.name}${s.lot ? ' lot ' + s.lot : ''} × ${qty}`);
+  clearIssueDraft();
+}
+function clearIssueDraft() {
+  iDraft = null; $('iItem').value = ''; $('iQty').value = 1; fillLots(null);
+  $('iScan').focus();
+}
+function renderIssueCart(flashRow) {
+  $('iCartCount').textContent = iCart.length ? `${iCart.length} รายการ · รวม ${iCart.reduce((a, c) => a + c.qty, 0)} หน่วย` : '';
+  $('iCartBody').innerHTML = cartRows(iCart, flashRow) || `<tr><td colspan="6" class="empty">สแกนกล่องที่จะเบิก หรือเลือกรายการแล้วกด “เพิ่มเข้ารายการ”</td></tr>`;
+  $('iSaveBtn').disabled = !iCart.length;
+  $('iSaveBtn').textContent = iCart.length ? `บันทึกเบิก ${iCart.length} รายการ` : 'บันทึกเบิก';
+}
+$('iCartBody').addEventListener('change', e => {
+  const i = e.target.dataset.i; if (i == null) return;
+  const c = iCart[i], q = Number(e.target.value);
+  const lot = INIT.stock.find(s => s.code === c.code && s.lot === c.lot);
+  const max = (lot ? lot.bal : 0) - (inCart(c.code, c.lot) - c.qty);
+  if (q > 0 && q <= max) c.qty = q;
+  else { e.target.value = c.qty; toast(`Lot ${c.lot} เบิกได้สูงสุด ${max} ${c.unit}`, true); }
+  renderIssueCart(); updateIssueInfo();
+});
+$('iCartBody').addEventListener('click', e => {
+  const i = e.target.dataset.del; if (i == null) return;
+  iCart.splice(Number(i), 1); renderIssueCart(); updateIssueInfo();
+});
+
+$('iSaveBtn').addEventListener('click', async () => {
+  if (!$('iTo').value) { $('iTo').focus(); return toast('เลือกหน่วยงาน/เครื่องที่เบิกไปใช้', true); }
+  if (!$('iIssuer').value) { $('iIssuer').focus(); return toast('เลือกผู้เบิกก่อนบันทึก', true); }
+  const btn = $('iSaveBtn'); btn.disabled = true; btn.textContent = 'กำลังบันทึก…';
+  try {
+    const res = await call('saveIssue', {
+      issueDate: $('iDate').value, issueTo: $('iTo').value, issuer: $('iIssuer').value, note: $('iNote').value,
+      items: iCart.map(c => ({itemCode: c.code, lot: c.lot, qty: c.qty, method: c.method, raw: c.raw}))
+    });
+    toast(`บันทึกเบิก ${res.count} รายการแล้ว (${idRange(res.ids)})`);
+    iCart = []; $('iNote').value = '';
+    renderIssueCart(); loadRecentIssues(); refreshInit();
+  } catch (e) { toast('บันทึกไม่สำเร็จ: ' + e.message, true); renderIssueCart(); }
+});
+
+async function loadRecentIssues() {
+  try {
+    const rows = await call('getRecentIssues', 20);
+    $('iRecentBody').innerHTML = rows.map(r => `<tr>
+      <td class="code">${esc(r.id)}</td><td>${thDate(r.date)}</td>
+      <td>${esc(r.name)}<span class="sub">${r.method === 'Scan' ? 'สแกน' : 'กรอกเอง'}</span></td>
+      <td class="code">${esc(r.lot) || '–'}</td><td>${thDate(r.exp) || '–'}</td>
+      <td class="n">${r.qty} ${esc(r.unit)}</td><td>${esc(r.to) || '–'}</td><td>${esc(r.issuer)}</td>
+    </tr>`).join('') || `<tr><td colspan="8" class="empty">ยังไม่มีการเบิก</td></tr>`;
+  } catch (e) { $('iRecentBody').innerHTML = `<tr><td colspan="8" class="empty">โหลดไม่สำเร็จ: ${esc(e.message)}</td></tr>`; }
+}
+
+/* ================= รายงาน ================= */
+let rep = 'receive', repRows = [], repLoaded = false, repReq = 0;
+const pad2 = n => String(n).padStart(2, '0');
+const isoOf = d => d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+const methodTh = m => m === 'Scan' ? 'สแกน' : 'กรอกเอง';
+const stCls = s => /^(ติดลบ|หมดอายุ)/.test(s) ? 'bad' : (/^ใกล้/.test(s) || s.includes('ต่ำกว่า Min')) ? 'warn' : s === 'หมด' ? '' : 'ok';
+
+function setRange(kind) {
+  const [y, m, d] = INIT.today.split('-').map(Number);
+  let a, b;
+  if (kind === 'month') { a = new Date(y, m - 1, 1); b = new Date(y, m - 1, d); }
+  else if (kind === 'last') { a = new Date(y, m - 2, 1); b = new Date(y, m - 1, 0); }
+  else if (kind === '30') { b = new Date(y, m - 1, d); a = new Date(y, m - 1, d - 29); }
+  else return;
+  $('qFrom').value = isoOf(a); $('qEnd').value = isoOf(b);
+}
+function initReport() {
+  $('qDest').innerHTML = '<option value="">ทุกที่</option>' + INIT.issueTo.map(s => `<option>${esc(s)}</option>`).join('');
+  setRange('month');
+}
+$('qRange').addEventListener('change', e => { setRange(e.target.value); if (e.target.value !== 'custom') runReport(); });
+['qFrom','qEnd'].forEach(id => $(id).addEventListener('change', () => { $('qRange').value = 'custom'; runReport(); }));
+$('qItem').addEventListener('input', () => renderReport());
+['qDest','qStatus'].forEach(id => $(id).addEventListener('change', () => renderReport()));
+$('qRun').addEventListener('click', runReport);
+$('qCsv').addEventListener('click', exportCsv);
+$('qPrint').addEventListener('click', () => window.print());
+document.querySelectorAll('[data-rep]').forEach(b => b.addEventListener('click', () => {
+  rep = b.dataset.rep;
+  document.querySelectorAll('[data-rep]').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+  document.querySelectorAll('.only-issue').forEach(x => x.classList.toggle('hide', rep !== 'issue'));
+  document.querySelectorAll('.only-stock').forEach(x => x.classList.toggle('hide', rep !== 'stock'));
+  document.querySelectorAll('.dr').forEach(x => x.classList.toggle('hide', rep === 'stock'));
+  runReport();
+}));
+$('repSummary').addEventListener('click', e => {
+  const b = e.target.closest('[data-st]'); if (!b) return;
+  $('qStatus').value = b.dataset.st; renderReport();
+});
+
+async function runReport() {
+  repLoaded = true;
+  if (rep !== 'stock' && $('qFrom').value > $('qEnd').value) return toast('วันที่เริ่มต้องไม่เกินวันที่สิ้นสุด', true);
+  const req = ++repReq, kind = rep;
+  $('repSummary').innerHTML = '';
+  $('repTable').innerHTML = '<tbody><tr><td class="empty">กำลังโหลดรายงาน…</td></tr></tbody>';
+  try {
+    const rows = await call('getReport', kind, $('qFrom').value, $('qEnd').value);
+    if (req !== repReq) return;
+    repRows = rows; renderReport();
+  } catch (e) {
+    if (req === repReq) $('repTable').innerHTML = `<tbody><tr><td class="empty">โหลดไม่สำเร็จ: ${esc(e.message)}</td></tr></tbody>`;
+  }
+}
+
+const COLS = {
+  receive: [
+    {h:'เลขที่รับ', v:r => r.id, c:'code'}, {h:'วันที่รับ', v:r => r.date, f:thDate}, {h:'เลขที่บิล', v:r => r.bill},
+    {h:'รหัส', v:r => r.code, c:'code'}, {h:'รายการ', v:r => r.name}, {h:'Lot', v:r => r.lot, c:'code'},
+    {h:'วันหมดอายุ', v:r => r.exp, f:thDate}, {h:'จำนวน', v:r => r.qty, c:'n'}, {h:'หน่วย', v:r => r.unit},
+    {h:'ผู้รับ', v:r => r.by}, {h:'ผู้ตรวจสอบ', v:r => r.checker}, {h:'วิธีบันทึก', v:r => methodTh(r.method)}, {h:'หมายเหตุ', v:r => r.note}
+  ],
+  issue: [
+    {h:'เลขที่เบิก', v:r => r.id, c:'code'}, {h:'วันที่เบิก', v:r => r.date, f:thDate},
+    {h:'รหัส', v:r => r.code, c:'code'}, {h:'รายการ', v:r => r.name}, {h:'Lot', v:r => r.lot, c:'code'},
+    {h:'วันหมดอายุ', v:r => r.exp, f:thDate}, {h:'จำนวน', v:r => r.qty, c:'n'}, {h:'หน่วย', v:r => r.unit},
+    {h:'เบิกไปที่', v:r => r.dest}, {h:'ผู้เบิก', v:r => r.by}, {h:'วิธีบันทึก', v:r => methodTh(r.method)}, {h:'หมายเหตุ', v:r => r.note}
+  ],
+  stock: [
+    {h:'รหัส', v:r => r.code, c:'code'}, {h:'รายการ', v:r => r.name}, {h:'Lot', v:r => r.lot, c:'code'},
+    {h:'วันหมดอายุ', v:r => r.exp, f:thDate, html:r => r.bal > 0 ? expCell(r.exp) : (thDate(r.exp) || '–')},
+    {h:'รับรวม', v:r => r.rec, c:'n'}, {h:'เบิกรวม', v:r => r.iss, c:'n'}, {h:'คงเหลือ lot', v:r => r.bal, c:'n'},
+    {h:'หน่วย', v:r => r.unit}, {h:'คงเหลือทั้งรายการ', v:r => r.itemBal, c:'n'}, {h:'Min', v:r => r.min, c:'n'},
+    {h:'สถานะ', v:r => r.status, html:r => `<small class="${stCls(r.status)}">${esc(r.status)}</small>`}, {h:'ที่เก็บ', v:r => r.loc}
+  ]
+};
+
+function repFiltered() {
+  const item = itemFromInput($('qItem').value), q = $('qItem').value.trim().toLowerCase();
+  const dest = $('qDest').value, st = $('qStatus').value;
+  return repRows.filter(r => {
+    if (item) { if (r.code !== item.code) return false; }
+    else if (q && !(r.code + ' ' + r.name).toLowerCase().includes(q)) return false;
+    if (rep === 'issue' && dest && r.dest !== dest) return false;
+    if (rep === 'stock') {
+      if (st === 'has' && !(r.bal > 0)) return false;
+      if (st === 'low' && !r.status.includes('ต่ำกว่า Min')) return false;
+      if (st === 'near' && !/^ใกล้/.test(r.status)) return false;
+      if (st === 'expired' && !/^หมดอายุ/.test(r.status)) return false;
+      if (st === 'out' && r.bal > 0) return false;
+    }
+    return true;
+  });
+}
+
+function renderReport() {
+  const rows = repFiltered(), cols = COLS[rep];
+  $('repTitle').textContent = {receive:'รายงานรับน้ำยา', issue:'รายงานเบิกใช้น้ำยา', stock:'รายงานคงเหลือน้ำยา'}[rep];
+  const parts = [rep === 'stock' ? 'ณ วันที่ ' + thDate(INIT.today) : `วันที่ ${thDate($('qFrom').value)} ถึง ${thDate($('qEnd').value)}`];
+  if ($('qItem').value.trim()) parts.push('รายการ: ' + $('qItem').value.trim());
+  if (rep === 'issue' && $('qDest').value) parts.push('เบิกไปที่: ' + $('qDest').value);
+  if (rep === 'stock') parts.push('แสดง: ' + $('qStatus').selectedOptions[0].text);
+  $('repSub').textContent = parts.join('  |  ');
+  $('repSummary').innerHTML = rep === 'stock' ? stockSummary() : itemSummary(rows);
+  const cell = (c, r) => {
+    if (c.html) return c.html(r);
+    const v = c.v(r);
+    if (c.f) return c.f(v) || '–';
+    return v === '' || v == null ? '–' : esc(v);
+  };
+  $('repTable').innerHTML =
+    `<thead><tr>${cols.map(c => `<th class="${c.c === 'n' ? 'n' : ''}">${c.h}</th>`).join('')}</tr></thead><tbody>` +
+    (rows.map(r => `<tr>${cols.map(c => `<td class="${c.c || ''}">${cell(c, r)}</td>`).join('')}</tr>`).join('') ||
+     `<tr><td colspan="${cols.length}" class="empty">ไม่มีข้อมูลตามเงื่อนไขนี้</td></tr>`) + '</tbody>';
+  $('repPrinted').textContent = 'พิมพ์เมื่อ ' + new Date().toLocaleString('th-TH');
+}
+
+function itemSummary(rows) {
+  if (!rows.length) return '';
+  const m = new Map();
+  rows.forEach(r => {
+    if (!m.has(r.code)) m.set(r.code, {code: r.code, name: r.name, unit: r.unit, n: 0, qty: 0, lots: new Set()});
+    const o = m.get(r.code); o.n++; o.qty += Number(r.qty) || 0; o.lots.add(r.lot);
+  });
+  const list = [...m.values()].sort((a, b) => a.name.localeCompare(b.name, 'th'));
+  return `<div class="chips"><span><b>${rows.length}</b> รายการที่บันทึก</span><span><b>${list.length}</b> ชนิดน้ำยา</span></div>
+    <h3>สรุปตามรายการ</h3>
+    <div class="scroll"><table><thead><tr><th>รหัส</th><th>รายการ</th><th class="n">จำนวนครั้ง</th><th class="n">จำนวน Lot</th><th class="n">รวม</th><th>หน่วย</th></tr></thead><tbody>
+    ${list.map(o => `<tr><td class="code">${esc(o.code)}</td><td>${esc(o.name)}</td><td class="n">${o.n}</td><td class="n">${o.lots.size}</td><td class="n"><b>${o.qty}</b></td><td>${esc(o.unit)}</td></tr>`).join('')}
+    </tbody></table></div>
+    <h3>รายละเอียด</h3>`;
+}
+
+function stockSummary() {
+  const all = repRows, st = $('qStatus').value;
+  const items = new Set(all.filter(r => r.bal > 0).map(r => r.code)).size;
+  const low = new Set(all.filter(r => r.status.includes('ต่ำกว่า Min')).map(r => r.code)).size;
+  const near = all.filter(r => /^ใกล้/.test(r.status)).length;
+  const expd = all.filter(r => /^หมดอายุ/.test(r.status)).length;
+  const chip = (k, n, t, cls) => `<button type="button" class="chip ${n ? cls : ''} ${st === k ? 'on' : ''}" data-st="${k}"><b>${n}</b> ${t}</button>`;
+  return `<div class="chips noprint">${chip('has', items, 'ชนิดที่มีของ', '')}${chip('low', low, 'ชนิดต่ำกว่า Min', 'warn')}${chip('near', near, 'lot ใกล้หมดอายุ', 'warn')}${chip('expired', expd, 'lot หมดอายุแล้ว', 'bad')}</div>`;
+}
+
+function exportCsv() {
+  const rows = repFiltered(), cols = COLS[rep];
+  if (!rows.length) return toast('ไม่มีข้อมูลให้ดาวน์โหลด', true);
+  const q = v => { v = v == null ? '' : String(v); return /[",\r\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+  const csv = '\uFEFF' + [cols.map(c => q(c.h)).join(','), ...rows.map(r => cols.map(c => q(c.v(r))).join(','))].join('\r\n');
+  const name = rep + '_' + (rep === 'stock' ? INIT.today : $('qFrom').value + '_' + $('qEnd').value) + '.csv';
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], {type: 'text/csv;charset=utf-8'}));
+  a.download = name; document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+}
+
+/* ================= ทะเบียนน้ำยา ================= */
+let MASTER = null, mEdit = null;   // mEdit = รหัสที่กำลังแก้ไข (null = เพิ่มใหม่)
+const M_MAP = {code:'mCode', name:'mName', cat:'mCat', unit:'mUnit', barcode:'mBarcode', maker:'mMaker',
+               supplier:'mSupplier', loc:'mLoc', temp:'mTemp', min:'mMin', note:'mNote'};
+const mMsg = (t, cls) => { $('mMsg').textContent = t; $('mMsg').className = 'alert ' + (cls || 'ok') + (t ? '' : ' hide'); };
+
+async function loadMaster(keepForm) {
+  if (!MASTER) $('mBody').innerHTML = '<tr><td colspan="8" class="empty">กำลังโหลดทะเบียน…</td></tr>';
+  try {
+    MASTER = await call('getMasterList');
+    const dl = (id, list) => $(id).innerHTML = [...new Set(list.filter(Boolean))].sort().map(v => `<option value="${esc(v)}"></option>`).join('');
+    const col = k => MASTER.items.map(i => i[k]);
+    dl('dlCat', MASTER.cats.concat(col('cat')));
+    dl('dlUnit', col('unit').concat(['กล่อง', 'ขวด', 'ชุด', 'แพ็ค', 'ชิ้น', 'หลอด']));
+    dl('dlMaker', col('maker')); dl('dlSupplier', col('supplier')); dl('dlLoc', col('loc'));
+    dl('dlTemp', col('temp').concat(['2-8°C', '15-30°C', '-20°C']));
+    if (!keepForm) newMaster(); else renderMaster();
+  } catch (e) { $('mBody').innerHTML = `<tr><td colspan="8" class="empty">โหลดไม่สำเร็จ: ${esc(e.message)}</td></tr>`; }
+}
+
+function renderMaster() {
+  if (!MASTER) return;
+  const q = $('mSearch').value.trim().toLowerCase(), f = $('mFilter').value;
+  const rows = MASTER.items.filter(i => (f === 'all' || (f === 'on') === i.active) &&
+    (!q || [i.code, i.name, i.cat, i.barcode, i.loc, i.maker].join(' ').toLowerCase().includes(q)));
+  $('mCount').textContent = `${rows.length} จาก ${MASTER.items.length} รายการ`;
+  $('mBody').innerHTML = rows.map(i => `<tr class="pick ${i.code === mEdit ? 'sel' : ''} ${i.active ? '' : 'off'}" data-code="${esc(i.code)}">
+      <td class="code">${esc(i.code)}</td>
+      <td>${esc(i.name)}${i.maker ? `<span class="sub">${esc(i.maker)}</span>` : ''}</td>
+      <td>${esc(i.cat) || '–'}</td><td>${esc(i.unit) || '–'}</td>
+      <td>${i.barcode ? '<small class="ok">มีแล้ว</small>' : '<small class="warn">ยังไม่มี</small>'}</td>
+      <td class="n">${i.min === '' ? '–' : i.min}</td><td>${esc(i.loc) || '–'}</td>
+      <td>${i.active ? '<small class="ok">ใช้งาน</small>' : '<small class="bad">ปิดใช้งาน</small>'}</td>
+    </tr>`).join('') ||
+    `<tr><td colspan="8" class="empty">${MASTER.items.length ? 'ไม่พบรายการที่ค้นหา' : 'ยังไม่มีรายการ — เพิ่มรายการแรกจากฟอร์มด้านบน'}</td></tr>`;
+}
+$('mSearch').addEventListener('input', renderMaster);
+$('mFilter').addEventListener('change', renderMaster);
+$('mBody').addEventListener('click', e => { const tr = e.target.closest('tr[data-code]'); if (tr) editMaster(tr.dataset.code); });
+
+function fillMasterForm(i) {
+  Object.keys(M_MAP).forEach(k => { $(M_MAP[k]).value = i[k] == null ? '' : i[k]; });
+  $('mActive').checked = i.active !== false;
+}
+function newMaster() {
+  mEdit = null;
+  fillMasterForm({code: MASTER ? MASTER.nextCode : '', active: true});
+  $('mCode').readOnly = false;
+  $('mTitle').textContent = 'เพิ่มรายการใหม่'; $('mSave').textContent = 'บันทึกรายการใหม่';
+  mMsg('');
+  renderMaster();
+}
+function editMaster(code) {
+  const i = MASTER && MASTER.items.find(x => x.code === code); if (!i) return;
+  mEdit = code; fillMasterForm(i);
+  $('mCode').readOnly = true;
+  $('mTitle').textContent = 'แก้ไข ' + code; $('mSave').textContent = 'บันทึกการแก้ไข';
+  mMsg('');
+  renderMaster();
+  $('mTitle').scrollIntoView({block: 'start', behavior: 'smooth'});
+}
+
+onEnter('mScan', handleMasterCode);
+function handleMasterCode(text) {
+  if (!MASTER) return;
+  const r = parseGS1(text), bc = r.gtin || normBc(text);
+  const owner = MASTER.items.find(i => i.barcode === bc);
+  if (owner && owner.code !== mEdit) {
+    editMaster(owner.code);
+    return mMsg(`บาร์โค้ดนี้ลงทะเบียนเป็น ${owner.name} แล้ว — เปิดรายการนั้นให้แก้ไข`, 'warn');
+  }
+  $('mBarcode').value = bc;
+  if (r.ref && !$('mNote').value.trim()) $('mNote').value = 'REF ' + r.ref;
+  mMsg(`ใส่บาร์โค้ด ${bc}${r.ref ? ' (REF ' + r.ref + ')' : ''} แล้ว`, 'ok');
+  if (!$('mName').value.trim()) $('mName').focus();
+}
+
+$('mCancel').addEventListener('click', () => { newMaster(); $('mScan').focus(); });
+$('mSave').addEventListener('click', async () => {
+  const p = {active: $('mActive').checked};
+  Object.keys(M_MAP).forEach(k => { p[k] = $(M_MAP[k]).value.trim(); });
+  if (!p.name) { $('mName').focus(); return mMsg('กรอกชื่อรายการ', 'bad'); }
+  if (!p.unit) { $('mUnit').focus(); return mMsg('กรอกหน่วย เช่น กล่อง ขวด', 'bad'); }
+  if (p.min !== '' && !(Number(p.min) >= 0)) { $('mMin').focus(); return mMsg('Min ต้องเป็นตัวเลขตั้งแต่ 0 ขึ้นไป', 'bad'); }
+  if (!mEdit && MASTER.items.some(i => i.name.toLowerCase() === p.name.toLowerCase()) &&
+      !confirm('มีรายการชื่อนี้อยู่แล้ว — ยังต้องการเพิ่มใหม่ใช่ไหม')) return;
+  const btn = $('mSave'), label = btn.textContent;
+  btn.disabled = true; btn.textContent = 'กำลังบันทึก…';
+  try {
+    const res = await call('saveMasterItem', p, !mEdit);
+    toast(res.isNew ? `เพิ่ม ${res.code} ${p.name} แล้ว` : `บันทึกการแก้ไข ${res.code} แล้ว`);
+    await loadMaster(true);
+    newMaster(); $('mScan').focus();
+    refreshInit();
+  } catch (e) { mMsg('บันทึกไม่สำเร็จ: ' + e.message, 'bad'); }
+  finally { btn.disabled = false; if (btn.textContent === 'กำลังบันทึก…') btn.textContent = label; }
+});
+
+/* ================= กล้อง ================= */
+let qr = null, camFor = 'r';
+document.querySelectorAll('[data-cam]').forEach(b => b.addEventListener('click', async () => {
+  if (typeof Html5Qrcode === 'undefined') return toast('โหลดตัวสแกนกล้องไม่สำเร็จ — ใช้เครื่องสแกนหรือพิมพ์แทน', true);
+  if (!window.isSecureContext || !navigator.mediaDevices) return toast('เบราว์เซอร์นี้เปิดกล้องไม่ได้ — ต้องเปิดผ่าน https และอนุญาตการใช้กล้อง', true);
+  camFor = b.dataset.cam;
+  $('cam').classList.remove('hide'); $('camMsg').textContent = 'หันกล้องไปที่ QR / DataMatrix บนกล่อง';
+  const F = Html5QrcodeSupportedFormats;
+  qr = new Html5Qrcode('reader', {formatsToSupport: [F.DATA_MATRIX, F.QR_CODE, F.CODE_128, F.EAN_13, F.EAN_8, F.UPC_A],
+                                  experimentalFeatures: {useBarCodeDetectorIfSupported: true}, verbose: false});
+  try {
+    await qr.start({facingMode: 'environment'}, {fps: 10, qrbox: {width: 240, height: 240}},
+      text => { closeCam(); ({i: handleIssueCode, m: handleMasterCode}[camFor] || handleCode)(text); }, () => {});
+  } catch (e) { $('camMsg').textContent = 'เปิดกล้องไม่ได้ (' + (e && e.message || e) + ') — ใช้เครื่องสแกนหรือพิมพ์รหัสแทน'; }
+}));
+async function closeCam() {
+  $('cam').classList.add('hide');
+  if (qr) { try { if (qr.isScanning) await qr.stop(); qr.clear(); } catch (e) {} qr = null; }
+  $({i: 'iScan', m: 'mScan'}[camFor] || 'scanInput').focus();
+}
+$('camClose').addEventListener('click', closeCam);
+
+/* ================= เมนู / แจ้งเตือน ================= */
+function showPage(p) {
+  page = p;
+  document.querySelectorAll('nav button').forEach(x => x.dataset.page === p ? x.setAttribute('aria-current', 'page') : x.removeAttribute('aria-current'));
+  ['receive','issue','report','master'].forEach(k => $('page-' + k).classList.toggle('hide', k !== p));
+  if (p === 'receive') $('scanInput').focus();
+  if (p === 'issue') { updateIssueInfo(); $('iScan').focus(); }
+  if (p === 'report' && !repLoaded) runReport();
+  if (p === 'master') { if (!MASTER) loadMaster(); $('mScan').focus(); }
+}
+document.querySelectorAll('nav button').forEach(b => b.addEventListener('click', () => { if (INIT) showPage(b.dataset.page); }));
+let toastT;
+function toast(msg, bad) {
+  const t = $('toast'); t.textContent = msg; t.className = bad ? 'bad' : '';
+  clearTimeout(toastT); toastT = setTimeout(() => t.classList.add('hide'), bad ? 5000 : 2600);
+}
+
+start();
+</script>
 </body>
 </html>
