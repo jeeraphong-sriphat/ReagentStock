@@ -384,14 +384,23 @@ let TOKEN = '', USER = null, booted = false;
 try { TOKEN = localStorage.getItem('rs_token') || ''; } catch (e) {}
 const saveToken = t => { TOKEN = t || ''; try { t ? localStorage.setItem('rs_token', t) : localStorage.removeItem('rs_token'); } catch (e) {} };
 
+// คำสั่งอ่านข้อมูลอย่างเดียว — ถ้าเซิร์ฟเวอร์ตอบผิดพลาดชั่วคราว (เช่น Apps Script เพิ่งตื่น) ให้ลองใหม่อัตโนมัติ
+// คำสั่งบันทึกจะไม่ลองซ้ำ เพื่อกันบันทึกซ้ำ
+const READ_ONLY = new Set(['me', 'getInitData', 'getRecentReceives', 'getRecentIssues', 'getReport', 'getMasterList']);
 async function call(action, ...args) {
-  let res, j;
-  try {
-    res = await fetch(API_URL, {method: 'POST', headers: {'Content-Type': 'text/plain;charset=utf-8'},
-                                body: JSON.stringify({action, token: TOKEN, args})});
-  } catch (e) { throw new Error('เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ — ตรวจสอบอินเทอร์เน็ต'); }
-  try { j = await res.json(); }
-  catch (e) { throw new Error('เซิร์ฟเวอร์ตอบกลับไม่ถูกต้อง (ตรวจว่า Deploy เป็น "Anyone" และ API_URL ถูกต้อง)'); }
+  const tries = READ_ONLY.has(action) ? 3 : 1;
+  let j = null, lastErr = '';
+  for (let n = 0; n < tries && !j; n++) {
+    if (n) await new Promise(r => setTimeout(r, 1500 * n));
+    let res;
+    try {
+      res = await fetch(API_URL, {method: 'POST', headers: {'Content-Type': 'text/plain;charset=utf-8'},
+                                  body: JSON.stringify({action, token: TOKEN, args})});
+    } catch (e) { lastErr = 'เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ — ตรวจสอบอินเทอร์เน็ต'; continue; }
+    try { j = await res.json(); }
+    catch (e) { lastErr = 'เซิร์ฟเวอร์ตอบกลับไม่ถูกต้อง ลองรีเฟรชหน้าอีกครั้ง'; }
+  }
+  if (!j) throw new Error(lastErr);
   if (!j.ok) {
     if (j.auth) { saveToken(''); showLogin(j.error); }
     throw new Error(j.error || 'เกิดข้อผิดพลาด');
@@ -426,7 +435,7 @@ $('logoutBtn').addEventListener('click', async () => {
 async function start() {
   if (!TOKEN) return showLogin();
   try { USER = await call('me'); afterLogin(); }
-  catch (e) { if ($('login').classList.contains('hide')) $('loading').textContent = 'เชื่อมต่อไม่สำเร็จ: ' + e.message; }
+  catch (e) { if ($('login').classList.contains('hide')) $('loading').innerHTML = 'เชื่อมต่อไม่สำเร็จ: ' + esc(e.message) + '<br><button class="btn" type="button" onclick="location.reload()" style="margin-top:12px">ลองใหม่</button>'; }
 }
 const thDate = iso => iso ? iso.slice(8,10) + '/' + iso.slice(5,7) + '/' + iso.slice(0,4) : '';
 
@@ -438,7 +447,7 @@ let page = 'receive';
 /* ================= โหลด / ข้อมูลกลาง ================= */
 async function boot() {
   try { INIT = await call('getInitData'); }
-  catch (e) { $('loading').textContent = 'โหลดข้อมูลไม่สำเร็จ: ' + e.message; return; }
+  catch (e) { $('loading').innerHTML = 'โหลดข้อมูลไม่สำเร็จ: ' + esc(e.message) + '<br><button class="btn" type="button" onclick="location.reload()" style="margin-top:12px">ลองใหม่</button>'; return; }
   indexItems();
   const opts = (list, ph) => '<option value="">' + ph + '</option>' + list.map(s => `<option>${esc(s)}</option>`).join('');
   document.querySelectorAll('select.staff').forEach(s => s.innerHTML = opts(INIT.staff, '— เลือก —'));
