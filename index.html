@@ -1033,18 +1033,36 @@ $('mSave').addEventListener('click', async () => {
 
 /* ================= กล้อง ================= */
 let qr = null, camFor = 'r';
+// กรอบสแกนแนวนอนกว้าง: บาร์โค้ด 1D เป็นแถบยาวเตี้ย ถ้าใช้กรอบสี่เหลี่ยมจัตุรัสจะตัดปลายแถบทิ้งจนอ่านไม่ได้
+const camBox = (w, h) => ({width: Math.max(50, Math.floor(w * 0.92)), height: Math.max(50, Math.min(Math.floor(h * 0.8), Math.floor(w * 0.6)))});
+// safe = false: ใช้ตัวอ่านของเบราว์เซอร์ (เร็ว) + ขอความละเอียดสูง / safe = true: ใช้ตัวอ่านสำรอง (ZXing) ตั้งค่าน้อยที่สุด
+async function startCam(safe) {
+  const F = Html5QrcodeSupportedFormats;
+  qr = new Html5Qrcode('reader', {
+    formatsToSupport: [F.QR_CODE, F.DATA_MATRIX, F.CODE_128, F.CODE_39, F.CODE_93, F.EAN_13, F.EAN_8, F.UPC_A, F.UPC_E, F.ITF, F.CODABAR],
+    experimentalFeatures: {useBarCodeDetectorIfSupported: !safe}, verbose: false});
+  const cfg = {fps: 10, qrbox: camBox};
+  if (!safe) cfg.videoConstraints = {facingMode: 'environment', width: {ideal: 1920}, height: {ideal: 1080}};
+  await qr.start({facingMode: 'environment'}, cfg,
+    text => { closeCam(); ({i: handleIssueCode, m: handleMasterCode}[camFor] || handleCode)(text); }, () => {});
+  if (!safe) { try { await qr.applyVideoConstraints({advanced: [{focusMode: 'continuous'}]}); } catch (e) {} }  // โฟกัสต่อเนื่อง (ถ้ากล้องรองรับ)
+}
 document.querySelectorAll('[data-cam]').forEach(b => b.addEventListener('click', async () => {
   if (typeof Html5Qrcode === 'undefined') return toast('โหลดตัวสแกนกล้องไม่สำเร็จ — ใช้เครื่องสแกนหรือพิมพ์แทน', true);
   if (!window.isSecureContext || !navigator.mediaDevices) return toast('เบราว์เซอร์นี้เปิดกล้องไม่ได้ — ต้องเปิดผ่าน https และอนุญาตการใช้กล้อง', true);
   camFor = b.dataset.cam;
-  $('cam').classList.remove('hide'); $('camMsg').textContent = 'หันกล้องไปที่ QR / DataMatrix บนกล่อง';
-  const F = Html5QrcodeSupportedFormats;
-  qr = new Html5Qrcode('reader', {formatsToSupport: [F.DATA_MATRIX, F.QR_CODE, F.CODE_128, F.EAN_13, F.EAN_8, F.UPC_A],
-                                  experimentalFeatures: {useBarCodeDetectorIfSupported: true}, verbose: false});
-  try {
-    await qr.start({facingMode: 'environment'}, {fps: 10, qrbox: {width: 240, height: 240}},
-      text => { closeCam(); ({i: handleIssueCode, m: handleMasterCode}[camFor] || handleCode)(text); }, () => {});
-  } catch (e) { $('camMsg').textContent = 'เปิดกล้องไม่ได้ (' + (e && e.message || e) + ') — ใช้เครื่องสแกนหรือพิมพ์รหัสแทน'; }
+  $('cam').classList.remove('hide');
+  $('camMsg').textContent = 'วาง QR / DataMatrix / บาร์โค้ด ให้อยู่ในกรอบ ห่างประมาณ 10–20 ซม. ถือให้นิ่ง';
+  let err = null;
+  try { await startCam(false); }
+  catch (e1) {
+    err = e1;
+    if (!/NotAllowed|Permission|denied/i.test(String((e1 && (e1.name || e1.message)) || e1))) {   // ไม่ใช่เรื่องสิทธิ์: ลองโหมดสำรอง
+      try { if (qr) qr.clear(); } catch (x) {}
+      try { await startCam(true); err = null; } catch (e2) { err = e2; }
+    }
+  }
+  if (err) $('camMsg').textContent = 'เปิดกล้องไม่ได้ (' + (err && err.message || err) + ') — ใช้เครื่องสแกนหรือพิมพ์รหัสแทน';
 }));
 async function closeCam() {
   $('cam').classList.add('hide');
