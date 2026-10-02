@@ -836,18 +836,18 @@ async function runReport() {
 const COLS = {
   receive: [
     {h:'เลขที่รับ', v:r => r.id, c:'code'}, {h:'วันที่รับ', v:r => r.date, f:thDate}, {h:'เลขที่บิล', v:r => r.bill},
-    {h:'รหัส', v:r => r.code, c:'code'}, {h:'รายการ', v:r => r.name}, {h:'Lot', v:r => r.lot, c:'code'},
+    {h:'รหัส', v:r => r.code, c:'code'}, {h:'GTIN', v:r => r.gtin, c:'code'}, {h:'รายการ', v:r => r.name}, {h:'Lot', v:r => r.lot, c:'code'},
     {h:'วันหมดอายุ', v:r => r.exp, f:thDate}, {h:'จำนวน', v:r => r.qty, c:'n'}, {h:'หน่วย', v:r => r.unit},
     {h:'ผู้รับ', v:r => r.by}, {h:'ผู้ตรวจสอบ', v:r => r.checker}, {h:'วิธีบันทึก', v:r => methodTh(r.method)}, {h:'หมายเหตุ', v:r => r.note}
   ],
   issue: [
     {h:'เลขที่เบิก', v:r => r.id, c:'code'}, {h:'วันที่เบิก', v:r => r.date, f:thDate},
-    {h:'รหัส', v:r => r.code, c:'code'}, {h:'รายการ', v:r => r.name}, {h:'Lot', v:r => r.lot, c:'code'},
+    {h:'รหัส', v:r => r.code, c:'code'}, {h:'GTIN', v:r => r.gtin, c:'code'}, {h:'รายการ', v:r => r.name}, {h:'Lot', v:r => r.lot, c:'code'},
     {h:'วันหมดอายุ', v:r => r.exp, f:thDate}, {h:'จำนวน', v:r => r.qty, c:'n'}, {h:'หน่วย', v:r => r.unit},
     {h:'เบิกไปที่', v:r => r.dest}, {h:'ผู้เบิก', v:r => r.by}, {h:'วิธีบันทึก', v:r => methodTh(r.method)}, {h:'หมายเหตุ', v:r => r.note}
   ],
   stock: [
-    {h:'รหัส', v:r => r.code, c:'code'}, {h:'รายการ', v:r => r.name}, {h:'Lot', v:r => r.lot, c:'code'},
+    {h:'รหัส', v:r => r.code, c:'code'}, {h:'GTIN', v:r => r.gtin, c:'code'}, {h:'รายการ', v:r => r.name}, {h:'Lot', v:r => r.lot, c:'code'},
     {h:'วันหมดอายุ', v:r => r.exp, f:thDate, html:r => r.bal > 0 ? expCell(r.exp) : (thDate(r.exp) || '–')},
     {h:'รับรวม', v:r => r.rec, c:'n'}, {h:'เบิกรวม', v:r => r.iss, c:'n'}, {h:'คงเหลือ lot', v:r => r.bal, c:'n'},
     {h:'หน่วย', v:r => r.unit}, {h:'คงเหลือทั้งรายการ', v:r => r.itemBal, c:'n'}, {h:'Min', v:r => r.min, c:'n'},
@@ -860,7 +860,7 @@ function repFiltered() {
   const dest = $('qDest').value, st = $('qStatus').value;
   return repRows.filter(r => {
     if (item) { if (r.code !== item.code) return false; }
-    else if (q && !(r.code + ' ' + r.name).toLowerCase().includes(q)) return false;
+    else if (q && !(r.code + ' ' + (r.gtin || '') + ' ' + r.name).toLowerCase().includes(q)) return false;
     if (rep === 'issue' && dest && r.dest !== dest) return false;
     if (rep === 'stock') {
       if (st === 'has' && !(r.bal > 0)) return false;
@@ -899,14 +899,14 @@ function itemSummary(rows) {
   if (!rows.length) return '';
   const m = new Map();
   rows.forEach(r => {
-    if (!m.has(r.code)) m.set(r.code, {code: r.code, name: r.name, unit: r.unit, n: 0, qty: 0, lots: new Set()});
+    if (!m.has(r.code)) m.set(r.code, {code: r.code, gtin: r.gtin, name: r.name, unit: r.unit, n: 0, qty: 0, lots: new Set()});
     const o = m.get(r.code); o.n++; o.qty += Number(r.qty) || 0; o.lots.add(r.lot);
   });
   const list = [...m.values()].sort((a, b) => a.name.localeCompare(b.name, 'th'));
   return `<div class="chips"><span><b>${rows.length}</b> รายการที่บันทึก</span><span><b>${list.length}</b> ชนิดน้ำยา</span></div>
     <h3>สรุปตามรายการ</h3>
-    <div class="scroll"><table><thead><tr><th>รหัส</th><th>รายการ</th><th class="n">จำนวนครั้ง</th><th class="n">จำนวน Lot</th><th class="n">รวม</th><th>หน่วย</th></tr></thead><tbody>
-    ${list.map(o => `<tr><td class="code">${esc(o.code)}</td><td>${esc(o.name)}</td><td class="n">${o.n}</td><td class="n">${o.lots.size}</td><td class="n"><b>${o.qty}</b></td><td>${esc(o.unit)}</td></tr>`).join('')}
+    <div class="scroll"><table><thead><tr><th>รหัส</th><th>GTIN</th><th>รายการ</th><th class="n">จำนวนครั้ง</th><th class="n">จำนวน Lot</th><th class="n">รวม</th><th>หน่วย</th></tr></thead><tbody>
+    ${list.map(o => `<tr><td class="code">${esc(o.code)}</td><td class="code">${esc(o.gtin) || '–'}</td><td>${esc(o.name)}</td><td class="n">${o.n}</td><td class="n">${o.lots.size}</td><td class="n"><b>${o.qty}</b></td><td>${esc(o.unit)}</td></tr>`).join('')}
     </tbody></table></div>
     <h3>รายละเอียด</h3>`;
 }
